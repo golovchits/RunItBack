@@ -1,0 +1,105 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+    --rib-bg0: #0b0d10;
+    --rib-bg1: #101317;
+    --rib-bg2: #161a1f;
+    --rib-bg3: #1c2128;
+    --rib-bg4: #232932;
+    --rib-line: #262c35;
+    --rib-line2: #323a45;
+    --rib-text0: #e8ecf1;
+    --rib-text1: #b4bcc7;
+    --rib-text2: #7c8593;
+    --rib-text3: #545c68;
+    --rib-mono: #c9d1db;
+    --rib-agent-paper: #d98040;
+    --rib-agent-auditor: #5a8cd9;
+    --rib-agent-validator: #4fa579;
+    --rib-agent-reviewer: #9a7fd1;
+    --rib-critical: #e55353;
+    --rib-high: #e08340;
+    --rib-medium: #d6a54a;
+    --rib-low: #9ba34a;
+    --rib-info: #7c8593;
+    --rib-reproducible: #4fa579;
+    --rib-likely: #86a74a;
+    --rib-questionable: #d6a54a;
+    --rib-notrep: #e55353;
+    --rib-inconclusive: #7c8593;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background: var(--rib-bg0);
+    color: var(--rib-text0);
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI",
+      system-ui, sans-serif;
+    font-feature-settings: "cv11", "ss01", "ss02";
+    font-size: 14px;
+    line-height: 22px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow: hidden;
+  }
+
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  ::selection {
+    background: rgba(90, 140, 217, 0.35);
+    color: #fff;
+  }
+}
+
+@layer utilities {
+  .font-mono,
+  .rib-mono {
+    font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo,
+      monospace;
+    font-feature-settings: "calt" 0, "liga" 0;
+  }
+
+  .rib-scrollbar::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  .rib-scrollbar::-webkit-scrollbar-thumb {
+    background: #262c35;
+    border-radius: 6px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  .rib-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #323a45;
+    background-clip: content-box;
+    border: 2px solid transparent;
+  }
+  .rib-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+  .text-pretty {
+    text-wrap: pretty;
+  }
+
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+}

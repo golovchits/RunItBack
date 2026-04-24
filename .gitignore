@@ -1,0 +1,57 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Virtualenvs
+.venv/
+venv/
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# Test / lint caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# RunItBack runtime artifacts (clones, downloads, audit state, SQLite)
+runtime/
+data/
+uploads/
+
+# Frontend
+node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Logs
+*.log
+
+# Large local archives — never commit
+*.tar
+*.tar.gz
+*.zip
+
+# Local Claude CLI permissions
+.claude/settings.local.json

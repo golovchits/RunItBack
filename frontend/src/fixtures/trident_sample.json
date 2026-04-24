@@ -1,0 +1,495 @@
+{
+  "audit_id": "a1b2c3d4-trident-demo",
+  "generated_at": "2026-04-26T18:12:04Z",
+  "verdict": "not_reproducible",
+  "confidence": 0.87,
+  "headline": "TRIDENT's reported 96.97% / 83.26% accuracy is not recoverable from the released code and artifacts.",
+  "executive_summary": "**TRIDENT** (Alla et al. 2025) claims 96.97% clean / 83.26% noisy accuracy for late-fusion tri-modal drone classification. Our audit surfaces **8 issues, 4 of them critical**, that collectively invalidate the reported numbers.\n\nThe public checkpoints are corrupt (7 of 8 fail md5 and zip integrity). Fusion backbones are not frozen despite the paper describing 'independently optimized unimodal models', giving the released training script an unfair capacity advantage. ImageNet normalisation is defined in `get_img_transform` but never added to the pipeline, so video and RF models are fed raw [0,1] pixels. Train/test transform flags are swapped across `fusion_train.py` and `unimodal_train.py`. RF augmentations are physically nonsensical — image ops applied to spectrograms — and raw I/Q signals needed for the paper's noise protocol are documented but not distributed.\n\nWe recommend retraining all 7 non-audio models from scratch, freezing backbones during fusion training, applying ImageNet normalisation, evaluating RF under clean conditions only, and averaging across ≥3 seeds before any comparison to paper numbers.",
+  "severity_counts": {
+    "critical": 4,
+    "high": 3,
+    "medium": 1,
+    "low": 0,
+    "info": 1
+  },
+  "runtime_mode_used": "managed_agents",
+  "runtime_ms_total": 423000,
+  "cost_usd_estimate": 1.82,
+  "claim_verifications": [
+    {
+      "claim_id": "metric_001",
+      "claim_summary": "Late Fusion 96.97% clean / 83.26% noisy on DroneRGBA-277",
+      "status": "not_verified",
+      "code_location": "fusion_train.py",
+      "notes": "Reproduction yields 92.42 ± 0.20% (3 seeds).",
+      "linked_finding_ids": [
+        "f_frozen_backbones",
+        "f_imagenet_norm"
+      ]
+    },
+    {
+      "claim_id": "arch_001",
+      "claim_summary": "Unimodal backbones frozen during fusion training",
+      "status": "not_verified",
+      "code_location": "fusion_train.py:82",
+      "linked_finding_ids": [
+        "f_frozen_backbones"
+      ]
+    },
+    {
+      "claim_id": "train_001",
+      "claim_summary": "Adam, cosine annealing LR 0.001–0.01, 20 epochs from scratch",
+      "status": "partial",
+      "code_location": "configs/vgg_audio.yaml",
+      "notes": "VGG collapses at stated LR; undocumented deviation to 0.0001 required.",
+      "linked_finding_ids": [
+        "f_vgg_lr"
+      ]
+    },
+    {
+      "claim_id": "eval_001",
+      "claim_summary": "Evaluated under clean/low/high noise conditions synchronously across modalities",
+      "status": "partial",
+      "code_location": "eval.py:140",
+      "notes": "RF noise protocol requires raw I/Q not shipped in release; RF branch evaluated clean only.",
+      "linked_finding_ids": [
+        "f_rf_augs"
+      ]
+    },
+    {
+      "claim_id": "data_001",
+      "claim_summary": "277 ten-second clips, tri-modal (RGB + Audio + RF)",
+      "status": "partial",
+      "notes": "Modality misalignment: 550-segment delta where video data exists but RF does not (~5% bi-modal).",
+      "linked_finding_ids": []
+    }
+  ],
+  "config_comparison": [
+    {
+      "parameter": "optimizer",
+      "paper_value": "Adam",
+      "code_value": "Adam",
+      "code_location": "fusion_train.py:71",
+      "match": true,
+      "severity": "info"
+    },
+    {
+      "parameter": "learning_rate (VGG audio)",
+      "paper_value": "0.001–0.01",
+      "code_value": "0.0001",
+      "code_location": "configs/vgg_audio.yaml:7",
+      "match": false,
+      "severity": "medium"
+    },
+    {
+      "parameter": "epochs",
+      "paper_value": "20",
+      "code_value": "20",
+      "code_location": "fusion_train.py:118",
+      "match": true,
+      "severity": "info"
+    },
+    {
+      "parameter": "backbone.frozen",
+      "paper_value": "true",
+      "code_value": "false",
+      "code_location": "fusion_train.py:82",
+      "match": false,
+      "severity": "critical"
+    },
+    {
+      "parameter": "transform.is_training (test)",
+      "paper_value": "false",
+      "code_value": "true",
+      "code_location": "unimodal_train.py:54",
+      "match": false,
+      "severity": "high"
+    },
+    {
+      "parameter": "cudnn.deterministic",
+      "paper_value": "(not stated)",
+      "code_value": "not set",
+      "code_location": "—",
+      "match": false,
+      "severity": "high"
+    }
+  ],
+  "recommendations": [
+    {
+      "rank": 1,
+      "title": "Freeze backbones during fusion training",
+      "rationale": "Pass only the fusion head's parameters to the optimizer to match the paper's 'independently optimized' claim.",
+      "linked_finding_ids": [
+        "f_frozen_backbones"
+      ]
+    },
+    {
+      "rank": 2,
+      "title": "Apply ImageNet normalisation in `get_img_transform`",
+      "rationale": "The computed mean/std tensor is never added to the Compose list. Video and RF inputs are currently [0,1] raw.",
+      "linked_finding_ids": [
+        "f_imagenet_norm"
+      ]
+    },
+    {
+      "rank": 3,
+      "title": "Evaluate RF under clean conditions only until raw I/Q is distributed",
+      "rationale": "Image-domain augmentations (flip, rotate, ColorJitter) applied to spectrograms are physically meaningless. Mark RF noise branch as unvalidated.",
+      "linked_finding_ids": [
+        "f_rf_augs"
+      ]
+    },
+    {
+      "rank": 4,
+      "title": "Set cudnn.deterministic and worker_init_fn; report ≥3-seed means",
+      "rationale": "Single-run evaluation numbers fluctuate materially; no reported stddev.",
+      "linked_finding_ids": [
+        "f_nondet"
+      ]
+    },
+    {
+      "rank": 5,
+      "title": "Re-release checkpoints with md5 and zip integrity verification",
+      "rationale": "7 of 8 Google Drive checkpoints fail integrity checks.",
+      "linked_finding_ids": [
+        "f_ckpt_corrupt"
+      ]
+    }
+  ],
+  "unresolved_disagreements": [
+    {
+      "finding_id": "f_transform_swap",
+      "auditor_verdict": "high — train/test transform flags swapped across both training scripts",
+      "validator_verdict": "inconclusive — swap is real but paper's clean-validation protocol makes audio/video path accidentally correct",
+      "reviewer_resolution": "Downgraded to `high` but surfaced: the swap is real and the RF branch still behaves wrongly even if audio/video happens to land on the correct protocol. Not a silent pass.",
+      "exposed_in_report": true
+    }
+  ],
+  "eda_summary": {
+    "splits_observed": {
+      "train": 194,
+      "val": 42,
+      "test": 41
+    },
+    "class_distribution": {
+      "train": {
+        "drone": 132,
+        "non_drone": 62
+      },
+      "val": {
+        "drone": 29,
+        "non_drone": 13
+      },
+      "test": {
+        "drone": 28,
+        "non_drone": 13
+      }
+    },
+    "file_format_stats": {
+      ".wav": 277,
+      ".mp4": 277,
+      ".npy": 11321,
+      ".pt": 8
+    },
+    "sample_dimensions_summary": "Video 83,100 frames @ 7/segment; RF 11,321 spectrograms; Δ = 550 segments (bi-modal gap, ~5%).",
+    "corrupt_files": [
+      "checkpoints/video_i3d.pt",
+      "checkpoints/rf_mobilenet.pt",
+      "checkpoints/vgg19_audio.pt",
+      "checkpoints/late_fusion.pt",
+      "checkpoints/gmu_fusion.pt",
+      "checkpoints/video_mobilenet.pt",
+      "checkpoints/rf_i3d.pt"
+    ],
+    "duplicate_hashes": []
+  },
+  "findings": [
+    {
+      "id": "f_ckpt_corrupt",
+      "category": "data.checkpoint_corrupt_or_wrong_shape",
+      "severity": "critical",
+      "title": "7 of 8 pretrained checkpoints fail integrity verification",
+      "description": "Every Google Drive checkpoint >1MB fails md5 verification and `zipfile.testzip()` integrity checks. Only `lenet_audio.pt` (56KB) loads cleanly. Reproduction is blocked on the reported numbers without retraining all 7 models from scratch.",
+      "paper_claim_refs": [
+        "metric_001",
+        "arch_001"
+      ],
+      "code_span": null,
+      "data_path": "checkpoints/",
+      "evidence": [
+        {
+          "kind": "hash_compare",
+          "description": "md5 of downloaded checkpoints vs README.md listed hashes",
+          "raw": "video_i3d.pt   expected 3f8a...  got 00000000000000000000000000000000  FAIL\nrf_mobilenet.pt expected b21e...  got d41d8cd98f00b204e9800998ecf8427e  FAIL\n...\nlenet_audio.pt expected 9c2b...  got 9c2b1f9e4a...                       OK"
+        },
+        {
+          "kind": "bash_output",
+          "description": "zipfile integrity test",
+          "raw": "$ python -c \"import zipfile,sys;print(zipfile.is_zipfile(sys.argv[1]))\" checkpoints/video_i3d.pt\nFalse"
+        }
+      ],
+      "paper_says": "\"We release all pretrained checkpoints for reproduction.\" (Alla et al. 2025, §4)",
+      "code_does": "Of 8 checkpoints, 7 are corrupt or truncated on download. Only the 56KB LeNet audio checkpoint is usable.",
+      "suggested_fix_prose": "Re-upload checkpoints with integrity hashes. In the interim, retrain all affected models from scratch using provided configs.",
+      "suggested_fix_diff": null,
+      "confidence": 0.98,
+      "detector": "validator",
+      "validation_verdict": "confirmed",
+      "cross_refs": []
+    },
+    {
+      "id": "f_frozen_backbones",
+      "category": "training.frozen_backbone_claim_mismatch",
+      "severity": "critical",
+      "title": "Fusion backbones trainable despite 'independently optimized' claim",
+      "description": "`fusion_train.py` passes `model.parameters()` to the optimizer, making all unimodal backbone weights trainable during fusion training. The paper describes 'combining decisions from independently optimized' classifiers, implying frozen unimodal backbones and a fresh fusion head. End-to-end fine-tuning materially inflates capacity above the paper's setup.",
+      "paper_claim_refs": [
+        "arch_001"
+      ],
+      "code_span": {
+        "file_path": "src/fusion_train.py",
+        "line_start": 82,
+        "line_end": 94,
+        "snippet": "    model = LateFusion(video_backbone, audio_backbone, rf_backbone, num_classes=2)\n    model = model.to(device)\n\n    # Optimizer over all parameters (including unimodal backbones)\n    optimizer = torch.optim.Adam(model.parameters(), lr=cfg.lr)\n    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=cfg.epochs)\n\n    criterion = nn.CrossEntropyLoss()\n    for epoch in range(cfg.epochs):\n        train_one_epoch(model, train_loader, optimizer, criterion, device)\n        scheduler.step()\n        evaluate(model, val_loader, device, epoch)\n        save_if_best(model, metric, epoch, cfg.out_dir)",
+        "context_before": 5,
+        "context_after": 5,
+        "highlight_lines": [
+          85
+        ]
+      },
+      "evidence": [
+        {
+          "kind": "grep",
+          "description": "grep for requires_grad / freeze across repo",
+          "raw": "$ grep -rn \"requires_grad\\|\\.freeze(\" src/\n(no matches)"
+        },
+        {
+          "kind": "file_read",
+          "description": "fusion_train.py:85",
+          "raw": "optimizer = torch.optim.Adam(model.parameters(), lr=cfg.lr)"
+        }
+      ],
+      "paper_says": "\"We combine decisions from independently optimized unimodal classifiers via late fusion.\" (§3.2)",
+      "code_does": "All unimodal backbone parameters are passed to the optimizer; no `requires_grad_(False)` or freeze helper anywhere in the repo.",
+      "suggested_fix_diff": "--- a/src/fusion_train.py\n+++ b/src/fusion_train.py\n@@ -82,7 +82,11 @@ def train(cfg):\n     model = LateFusion(video_backbone, audio_backbone, rf_backbone, num_classes=2)\n     model = model.to(device)\n \n-    optimizer = torch.optim.Adam(model.parameters(), lr=cfg.lr)\n+    # Freeze backbones to match paper's independently-optimized claim\n+    for b in (model.video_backbone, model.audio_backbone, model.rf_backbone):\n+        for p in b.parameters():\n+            p.requires_grad = False\n+    optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=cfg.lr)",
+      "suggested_fix_prose": null,
+      "confidence": 0.96,
+      "detector": "auditor",
+      "validation_verdict": "confirmed",
+      "cross_refs": [
+        "f_imagenet_norm"
+      ]
+    },
+    {
+      "id": "f_rf_augs",
+      "category": "preprocessing.augmentation_leak_into_eval",
+      "severity": "critical",
+      "title": "Image-domain augmentations applied to RF spectrograms",
+      "description": "The RF test pipeline applies horizontal flip, rotation, and ColorJitter to 2D spectrogram tensors. Flipping reverses the time axis, rotation corrupts frequency-bin alignment, and ColorJitter scales power values into physical nonsense. The paper's noise protocol requires additive injection into raw I/Q signals before STFT — but raw I/Q is documented in the README and NOT distributed.",
+      "paper_claim_refs": [
+        "eval_001"
+      ],
+      "code_span": {
+        "file_path": "src/data/rf_transforms.py",
+        "line_start": 31,
+        "line_end": 49,
+        "snippet": "def build_rf_test_transform():\n    return T.Compose([\n        T.Resize((224, 224)),\n        T.RandomHorizontalFlip(p=1.0),     # flips time axis\n        T.RandomRotation(degrees=10),      # destroys freq-bin mapping\n        T.ColorJitter(0.3, 0.3, 0.3),      # scales power values\n        T.ToTensor(),\n    ])",
+        "context_before": 5,
+        "context_after": 5,
+        "highlight_lines": [
+          34,
+          35,
+          36
+        ]
+      },
+      "evidence": [
+        {
+          "kind": "file_read",
+          "description": "README.md RF data section",
+          "raw": "Raw I/Q captures are stored on our Snellius scratch volume (see §Requests). Released artifacts include pre-computed 224×224 power spectrograms only."
+        }
+      ],
+      "paper_says": "\"Noise is applied synchronously across all three modalities at test time, following the additive perturbation protocol of (Chen 2023).\" (§4.2)",
+      "code_does": "Test-time RF transform uses image-domain ops. The paper's additive I/Q noise protocol cannot be implemented because raw I/Q data is not shipped with the repo.",
+      "suggested_fix_prose": "Evaluate RF under clean conditions only until raw I/Q is distributed. Remove image-domain transforms from `build_rf_test_transform` and mark RF noise branch as unvalidated in the results table.",
+      "suggested_fix_diff": null,
+      "confidence": 0.91,
+      "detector": "reviewer",
+      "validation_verdict": "confirmed",
+      "cross_refs": [
+        "f_transform_swap"
+      ]
+    },
+    {
+      "id": "f_imagenet_norm",
+      "category": "code_quality.dead_code_intended_behavior_missing",
+      "severity": "high",
+      "title": "ImageNet normalisation computed but never applied",
+      "description": "`get_normalize()` is invoked inside `get_img_transform` and its output assigned to a local variable, but the variable is never added to the `Compose` pipeline. Video and RF models therefore receive raw [0,1] pixel values at both train and eval time. The dead assignment suggests the normalize step was written and then accidentally dropped.",
+      "paper_claim_refs": [
+        "arch_001"
+      ],
+      "code_span": {
+        "file_path": "src/data/transforms.py",
+        "line_start": 47,
+        "line_end": 68,
+        "snippet": "def get_img_transform(is_training: bool, img_size: int = 224):\n    normalize = get_normalize()   # ← computed, never used\n    ops: list = []\n    if is_training:\n        ops.append(T.RandomResizedCrop(img_size))\n        ops.append(T.RandomHorizontalFlip())\n        ops.append(T.ColorJitter(0.4, 0.4, 0.4))\n    else:\n        ops.append(T.Resize(int(img_size * 1.14)))\n        ops.append(T.CenterCrop(img_size))\n    ops.append(T.ToTensor())\n    # NOTE: normalize intentionally omitted?  (no, it was dropped)\n    return T.Compose(ops)",
+        "context_before": 5,
+        "context_after": 5,
+        "highlight_lines": [
+          48,
+          58
+        ]
+      },
+      "evidence": [
+        {
+          "kind": "grep",
+          "description": "usages of `normalize` in transforms.py",
+          "raw": "$ grep -n \"normalize\" src/data/transforms.py\n47:    normalize = get_normalize()"
+        }
+      ],
+      "paper_says": "\"We use ImageNet-pretrained backbones with standard ImageNet mean/std normalisation.\" (§3.1)",
+      "code_does": "`get_normalize()` is called, bound to a local, and never added to the transform pipeline. Models receive raw [0,1] tensors.",
+      "suggested_fix_diff": "--- a/src/data/transforms.py\n+++ b/src/data/transforms.py\n@@ -57,7 +57,7 @@ def get_img_transform(is_training, img_size=224):\n         ops.append(T.Resize(int(img_size * 1.14)))\n         ops.append(T.CenterCrop(img_size))\n     ops.append(T.ToTensor())\n-    # NOTE: normalize intentionally omitted?\n+    ops.append(normalize)\n     return T.Compose(ops)",
+      "confidence": 0.93,
+      "detector": "auditor",
+      "validation_verdict": "confirmed",
+      "cross_refs": []
+    },
+    {
+      "id": "f_transform_swap",
+      "category": "preprocessing.flag_swapped",
+      "severity": "high",
+      "title": "`is_training=True` hard-coded inside test transform dict",
+      "description": "Both `fusion_train.py` and `unimodal_train.py` construct the `transform_test` dict with `is_training=True` for all modalities. Checkpoint selection during training therefore uses training-time augmentations on the validation split. The paper's clean-validation protocol makes this accidentally correct for audio and video, but RF validation is affected.",
+      "paper_claim_refs": [
+        "eval_001"
+      ],
+      "code_span": {
+        "file_path": "src/unimodal_train.py",
+        "line_start": 48,
+        "line_end": 62,
+        "snippet": "transform_train = {\n    \"video\": get_img_transform(is_training=True),\n    \"audio\": get_audio_transform(is_training=True),\n    \"rf\":    get_img_transform(is_training=True),\n}\n\ntransform_test = {\n    \"video\": get_img_transform(is_training=True),   # ← should be False\n    \"audio\": get_audio_transform(is_training=True), # ← should be False\n    \"rf\":    get_img_transform(is_training=True),   # ← should be False\n}",
+        "context_before": 5,
+        "context_after": 5,
+        "highlight_lines": [
+          55,
+          56,
+          57
+        ]
+      },
+      "evidence": [
+        {
+          "kind": "grep",
+          "description": "is_training= in training scripts",
+          "raw": "$ grep -n \"is_training=\" src/*_train.py\nsrc/fusion_train.py:52:    \"video\": get_img_transform(is_training=True)\nsrc/fusion_train.py:56:    \"video\": get_img_transform(is_training=True)   # test dict\nsrc/unimodal_train.py:51:    \"rf\": get_img_transform(is_training=True)\nsrc/unimodal_train.py:58:    \"rf\":    get_img_transform(is_training=True)   # test dict"
+        }
+      ],
+      "paper_says": "Validation is performed on clean samples with deterministic transforms. (§4.1)",
+      "code_does": "Test-time transform dict sets `is_training=True`, enabling RandomResizedCrop / RandomHorizontalFlip / ColorJitter during validation.",
+      "suggested_fix_diff": "--- a/src/unimodal_train.py\n+++ b/src/unimodal_train.py\n@@ -55,6 +55,6 @@ transform_test = {\n-    \"video\": get_img_transform(is_training=True),\n-    \"audio\": get_audio_transform(is_training=True),\n-    \"rf\":    get_img_transform(is_training=True),\n+    \"video\": get_img_transform(is_training=False),\n+    \"audio\": get_audio_transform(is_training=False),\n+    \"rf\":    get_img_transform(is_training=False),\n }",
+      "confidence": 0.82,
+      "detector": "auditor",
+      "validation_verdict": "inconclusive",
+      "cross_refs": []
+    },
+    {
+      "id": "f_nondet",
+      "category": "determinism.cudnn_nondeterministic",
+      "severity": "high",
+      "title": "Non-deterministic evaluation; no seeding or worker_init_fn",
+      "description": "No call to `torch.backends.cudnn.deterministic = True`, no `worker_init_fn` in any DataLoader, no explicit seed set at script entry. Repeated evaluation of the same checkpoint produces different accuracy numbers due to stochastic test-time augmentation and non-deterministic GPU kernels. Single-run comparisons to paper numbers are not meaningful without multi-seed averaging.",
+      "paper_claim_refs": [
+        "eval_001"
+      ],
+      "code_span": {
+        "file_path": "src/eval.py",
+        "line_start": 1,
+        "line_end": 20,
+        "snippet": "import argparse\nimport torch\nimport yaml\nfrom .models import load_model\nfrom .data import build_test_loader\n\n\ndef main():\n    args = parse_args()\n    cfg = yaml.safe_load(open(args.config))\n    device = torch.device(\"cuda\" if torch.cuda.is_available() else \"cpu\")\n\n    # no seeding, no deterministic flag, no worker_init_fn\n    model = load_model(cfg, args.checkpoint).to(device).eval()\n    loader = build_test_loader(cfg)\n    acc = evaluate(model, loader, device)\n    print(f\"accuracy: {acc:.4f}\")",
+        "context_before": 5,
+        "context_after": 5,
+        "highlight_lines": [
+          13
+        ]
+      },
+      "evidence": [
+        {
+          "kind": "bash_output",
+          "description": "Three evaluations of same checkpoint",
+          "raw": "$ python -m src.eval --config configs/late_fusion.yaml --checkpoint late_fusion.pt\naccuracy: 0.9224\n$ python -m src.eval ...\naccuracy: 0.9261\n$ python -m src.eval ...\naccuracy: 0.9203"
+        }
+      ],
+      "paper_says": "No mention of seeding or determinism; results reported as single numbers with no stddev.",
+      "code_does": "No seeds set, cudnn non-deterministic, DataLoader workers unseeded. Evaluation results vary across runs of the same checkpoint.",
+      "suggested_fix_diff": "--- a/src/eval.py\n+++ b/src/eval.py\n@@ -8,6 +8,11 @@ def main():\n     args = parse_args()\n     cfg = yaml.safe_load(open(args.config))\n     device = torch.device(\"cuda\" if torch.cuda.is_available() else \"cpu\")\n \n+    torch.manual_seed(cfg.get(\"seed\", 0))\n+    torch.backends.cudnn.deterministic = True\n+    torch.backends.cudnn.benchmark = False\n+\n     model = load_model(cfg, args.checkpoint).to(device).eval()\n     loader = build_test_loader(cfg)",
+      "confidence": 0.94,
+      "detector": "auditor",
+      "validation_verdict": "confirmed",
+      "cross_refs": []
+    },
+    {
+      "id": "f_vgg_lr",
+      "category": "config.value_mismatch_with_paper",
+      "severity": "medium",
+      "title": "VGG-19 audio model LR 10x below paper's stated range",
+      "description": "The paper reports LR range 0.001–0.01 for all backbones. VGG-19 collapses to the majority class (62.5%) at these rates. The released config ships LR 0.0001 for the VGG audio branch — a 10x deviation not documented anywhere in the paper or README.",
+      "paper_claim_refs": [
+        "train_001"
+      ],
+      "code_span": {
+        "file_path": "configs/vgg_audio.yaml",
+        "line_start": 5,
+        "line_end": 12,
+        "snippet": "model: vgg19\nbackbone: vgg19_bn\npretrained: true\nlearning_rate: 0.0001   # deviated from paper (0.001–0.01); VGG collapsed otherwise\nbatch_size: 32\nepochs: 20\noptimizer: adam",
+        "context_before": 5,
+        "context_after": 5,
+        "highlight_lines": [
+          8
+        ]
+      },
+      "evidence": [
+        {
+          "kind": "runtime_print",
+          "description": "Training with LR 0.001 — majority-class collapse",
+          "raw": "epoch 0  train_loss=0.687  val_acc=0.6250  [majority class]\nepoch 1  train_loss=0.683  val_acc=0.6250\nepoch 2  train_loss=0.681  val_acc=0.6250"
+        }
+      ],
+      "paper_says": "\"All backbones trained with Adam, cosine annealing, LR 0.001–0.01.\" (§3.3, Table 2)",
+      "code_does": "`configs/vgg_audio.yaml` sets `learning_rate: 0.0001`, a comment acknowledges deviation but it is not surfaced in paper or README.",
+      "suggested_fix_prose": "Either document the LR deviation in the paper/README, or re-tune VGG at 0.001 with warmup so results match the stated protocol.",
+      "suggested_fix_diff": null,
+      "confidence": 0.88,
+      "detector": "validator",
+      "validation_verdict": "confirmed",
+      "cross_refs": []
+    },
+    {
+      "id": "f_modality_gap",
+      "category": "data.sample_count_mismatch_with_paper",
+      "severity": "info",
+      "title": "550-segment gap between video and RF modalities",
+      "description": "Video provides 11,871 segments (83,100 frames at 7 frames/segment) while RF provides 11,321 spectrograms — a 550-segment delta. For ~5% of the dataset, 'tri-modal' fusion is effectively bi-modal; the DataLoader silently handles the gap rather than raising.",
+      "paper_claim_refs": [
+        "data_001"
+      ],
+      "code_span": null,
+      "data_path": "data/DroneRGBA-277/",
+      "evidence": [
+        {
+          "kind": "bash_output",
+          "description": "segment counts per modality",
+          "raw": "video segments: 11871\nrf    segments: 11321\naudio segments: 11871\ndelta (video - rf): 550"
+        }
+      ],
+      "paper_says": "\"277 synchronously captured ten-second clips across RGB, audio, and RF modalities.\" (§3, Table 1)",
+      "code_does": "RF has 550 fewer segments than video/audio; DataLoader silently emits 2-modality items for the missing segments.",
+      "suggested_fix_prose": "Either drop mismatched segments at load time and log a warning, or surface the bi-modal fallback as an explicit dataset stat in the paper.",
+      "suggested_fix_diff": null,
+      "confidence": 0.78,
+      "detector": "auditor",
+      "validation_verdict": "unvalidated",
+      "cross_refs": []
+    }
+  ]
+}

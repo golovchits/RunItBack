@@ -1,0 +1,338 @@
+{
+  "audit_id": "nanogpt_readme_audit_001",
+  "generated_at": "2025-01-15T00:00:00Z",
+  "verdict": "inconclusive",
+  "confidence": 0.55,
+  "headline": "Static audit surfaces 2 high-severity reproducibility risks (no pinned dependencies; checkpoints omit GradScaler + RNG state) plus numerous architectural and evaluation-protocol mismatches between the from-scratch 124M reproduction and the baseline table — but the Validator timed out, so no claim was runtime-confirmed.",
+  "executive_summary": "**Verdict: INCONCLUSIVE.** The Validator timed out (0 results, 0 seconds of runtime), so none of nanoGPT's four headline numbers — val loss 1.4697 on Shakespeare-char (claim_metrics_003), 1.88 on CPU (claim_metrics_004), ~2.85 on OpenWebText (claim_metrics_001), and the 4-entry GPT-2 baseline table — has been reproduced end-to-end in this audit. The static analysis is however strong and self-consistent, and every finding below traces to a quoted file:line in the repo.\n\nThe most consequential static findings: (1) No pinned dependencies anywhere (README.md:22 bare pip install). (2) Checkpoints omit GradScaler and all RNG state (train.py:277-284). (3) From-scratch 124M uses bias=False while baseline-table GPT-2 forces bias=True. (4) Baseline table is a noisy Monte-Carlo estimate over ~4.1M sampled tokens. (5) Only torch is seeded (1337); numpy/python/cudnn untouched and TF32 enabled.\n\n**What to do first**: pin an environment snapshot, re-run Shakespeare-char twice to measure variance, and increase eval_iters by 10× for the OWT baseline table.",
+  "claim_verifications": [
+    {
+      "claim_id": "claim_metrics_001",
+      "claim_summary": null,
+      "status": "unchecked",
+      "code_location": null,
+      "notes": null,
+      "linked_finding_ids": []
+    },
+    {
+      "claim_id": "claim_metrics_003",
+      "claim_summary": null,
+      "status": "unchecked",
+      "code_location": null,
+      "notes": null,
+      "linked_finding_ids": []
+    },
+    {
+      "claim_id": "claim_metrics_004",
+      "claim_summary": null,
+      "status": "unchecked",
+      "code_location": null,
+      "notes": null,
+      "linked_finding_ids": []
+    },
+    {
+      "claim_id": "claim_metrics_005",
+      "claim_summary": null,
+      "status": "unchecked",
+      "code_location": null,
+      "notes": null,
+      "linked_finding_ids": []
+    },
+    {
+      "claim_id": "claim_metrics_006",
+      "claim_summary": null,
+      "status": "unchecked",
+      "code_location": null,
+      "notes": null,
+      "linked_finding_ids": []
+    },
+    {
+      "claim_id": "claim_metrics_007",
+      "claim_summary": null,
+      "status": "unchecked",
+      "code_location": null,
+      "notes": null,
+      "linked_finding_ids": []
+    },
+    {
+      "claim_id": "claim_metrics_008",
+      "claim_summary": null,
+      "status": "unchecked",
+      "code_location": null,
+      "notes": null,
+      "linked_finding_ids": []
+    },
+    {
+      "claim_id": "claim_metrics_009",
+      "claim_summary": null,
+      "status": "unchecked",
+      "code_location": null,
+      "notes": null,
+      "linked_finding_ids": []
+    },
+    {
+      "claim_id": "claim_metrics_010",
+      "claim_summary": null,
+      "status": "unchecked",
+      "code_location": null,
+      "notes": null,
+      "linked_finding_ids": []
+    },
+    {
+      "claim_id": "claim_metrics_011",
+      "claim_summary": null,
+      "status": "unchecked",
+      "code_location": null,
+      "notes": null,
+      "linked_finding_ids": []
+    },
+    {
+      "claim_id": "claim_metrics_012",
+      "claim_summary": null,
+      "status": "unchecked",
+      "code_location": null,
+      "notes": null,
+      "linked_finding_ids": []
+    },
+    {
+      "claim_id": "claim_metrics_014",
+      "claim_summary": null,
+      "status": "unchecked",
+      "code_location": null,
+      "notes": null,
+      "linked_finding_ids": []
+    },
+    {
+      "claim_id": "claim_metrics_015",
+      "claim_summary": null,
+      "status": "unchecked",
+      "code_location": null,
+      "notes": null,
+      "linked_finding_ids": []
+    },
+    {
+      "claim_id": "claim_training_config_003",
+      "claim_summary": null,
+      "status": "unchecked",
+      "code_location": null,
+      "notes": null,
+      "linked_finding_ids": []
+    },
+    {
+      "claim_id": "claim_training_config_011",
+      "claim_summary": null,
+      "status": "unchecked",
+      "code_location": null,
+      "notes": null,
+      "linked_finding_ids": []
+    }
+  ],
+  "findings": [
+    {
+      "id": "f_env_pins_001",
+      "category": "other",
+      "severity": "high",
+      "title": "No dependency pin file; README installs libraries with no version constraints",
+      "description": "No requirements.txt / pyproject.toml / setup.py / environment.yml exists in the repo. README.md:22 is the only install instruction and pins nothing. Code relies on PyTorch ≥ 2.0-only APIs (SDPA at model.py:45; torch.compile at train.py:208), fused AdamW (model.py:281), and the HuggingFace datasets legacy OpenWebText loader.",
+      "paper_claim_refs": [
+        "claim_training_config_011",
+        "claim_metrics_014",
+        "claim_metrics_015"
+      ],
+      "code_span": {
+        "file_path": "README.md",
+        "line_start": 19,
+        "line_end": 33,
+        "snippet": "",
+        "context_before": 5,
+        "context_after": 5
+      },
+      "data_path": null,
+      "evidence": [],
+      "paper_says": null,
+      "code_does": null,
+      "suggested_fix_diff": null,
+      "suggested_fix_prose": null,
+      "confidence": 0.95,
+      "detector": "auditor",
+      "cross_refs": []
+    },
+    {
+      "id": "f_ckpt_incomplete_002",
+      "category": "other",
+      "severity": "high",
+      "title": "Checkpoint omits GradScaler state and all RNG state; resume is not bitwise deterministic",
+      "description": "train.py:277-284 saves only {model, optimizer, model_args, iter_num, best_val_loss, config}. Missing: scaler.state_dict() (train.py:196), torch.get_rng_state()/torch.cuda.get_rng_state_all(), and numpy/random state. On resume, train.py:106 re-seeds torch to 1337+seed_offset regardless of iter_num, so post-resume data sequence does NOT match an uninterrupted run.",
+      "paper_claim_refs": [
+        "claim_training_config_003"
+      ],
+      "code_span": {
+        "file_path": "train.py",
+        "line_start": 274,
+        "line_end": 286,
+        "snippet": "",
+        "context_before": 5,
+        "context_after": 5
+      },
+      "data_path": null,
+      "evidence": [],
+      "paper_says": null,
+      "code_does": null,
+      "suggested_fix_diff": null,
+      "suggested_fix_prose": null,
+      "confidence": 0.95,
+      "detector": "auditor",
+      "cross_refs": []
+    },
+    {
+      "id": "f_gpt2_bias_mismatch_007",
+      "category": "other",
+      "severity": "medium",
+      "title": "From-scratch 124M reproduction uses bias=False while OpenAI GPT-2 has bias=True throughout",
+      "description": "The headline reproduction command inherits train.py:56 default `bias = False`; config/train_gpt2.py does not override. GPT.from_pretrained (model.py:222-225) forces bias=True for every OpenAI checkpoint used in the baseline table.",
+      "paper_claim_refs": [
+        "claim_architectures_001",
+        "claim_metrics_001"
+      ],
+      "code_span": {
+        "file_path": "train.py",
+        "line_start": 56,
+        "line_end": 56,
+        "snippet": "",
+        "context_before": 5,
+        "context_after": 5
+      },
+      "data_path": null,
+      "evidence": [],
+      "paper_says": null,
+      "code_does": null,
+      "suggested_fix_diff": null,
+      "suggested_fix_prose": null,
+      "confidence": 0.95,
+      "detector": "auditor",
+      "cross_refs": []
+    },
+    {
+      "id": "f_eval_stochastic_005",
+      "category": "other",
+      "severity": "medium",
+      "title": "Baseline-table losses are Monte-Carlo estimates over random windows, not full-split sweeps",
+      "description": "estimate_loss (train.py:215-228) averages loss.item() over eval_iters (=500) random batches. For the OWT val split (~4.4M tokens), 500×8×1024 ≈ 4.1M tokens sampled ≈ full-coverage-with-replacement — noisy, not deterministic. The 2-decimal-digit entries in the baseline table are not statistically resolved to their stated precision.",
+      "paper_claim_refs": [
+        "claim_metrics_005",
+        "claim_metrics_006",
+        "claim_metrics_007",
+        "claim_metrics_008"
+      ],
+      "code_span": {
+        "file_path": "train.py",
+        "line_start": 215,
+        "line_end": 228,
+        "snippet": "",
+        "context_before": 5,
+        "context_after": 5
+      },
+      "data_path": null,
+      "evidence": [],
+      "paper_says": null,
+      "code_does": null,
+      "suggested_fix_diff": null,
+      "suggested_fix_prose": null,
+      "confidence": 0.9,
+      "detector": "auditor",
+      "cross_refs": []
+    },
+    {
+      "id": "f_determinism_003",
+      "category": "other",
+      "severity": "medium",
+      "title": "Only torch RNG seeded; numpy/python/cudnn/CUBLAS untouched; TF32 enabled",
+      "description": "train.py:106 calls torch.manual_seed(1337+seed_offset). numpy.random.seed/random.seed never called. cudnn.deterministic never set; TF32 explicitly enabled at train.py:107-108. CUBLAS_WORKSPACE_CONFIG not exported. 4-decimal-digit claims (1.4697, 1.88) are unreachable to that precision across machines.",
+      "paper_claim_refs": [
+        "claim_metrics_001",
+        "claim_metrics_003",
+        "claim_metrics_004"
+      ],
+      "code_span": {
+        "file_path": "train.py",
+        "line_start": 106,
+        "line_end": 108,
+        "snippet": "",
+        "context_before": 5,
+        "context_after": 5
+      },
+      "data_path": null,
+      "evidence": [],
+      "paper_says": null,
+      "code_does": null,
+      "suggested_fix_diff": null,
+      "suggested_fix_prose": null,
+      "confidence": 0.95,
+      "detector": "auditor",
+      "cross_refs": []
+    },
+    {
+      "id": "f_best_val_tracking_004",
+      "category": "other",
+      "severity": "medium",
+      "title": "best_val_loss is overwritten unconditionally when always_save_checkpoint=True",
+      "description": "train.py:274-276 gates save with `if losses['val'] < best_val_loss or always_save_checkpoint:` and then unconditionally does `best_val_loss = losses['val']`. With always_save_checkpoint=True (default), the saved 'best_val_loss' is the most-recent val loss, not the minimum.",
+      "paper_claim_refs": [
+        "claim_metrics_001"
+      ],
+      "code_span": {
+        "file_path": "train.py",
+        "line_start": 274,
+        "line_end": 276,
+        "snippet": "",
+        "context_before": 5,
+        "context_after": 5
+      },
+      "data_path": null,
+      "evidence": [],
+      "paper_says": null,
+      "code_does": null,
+      "suggested_fix_diff": null,
+      "suggested_fix_prose": null,
+      "confidence": 0.9,
+      "detector": "auditor",
+      "cross_refs": []
+    },
+    {
+      "id": "f_modelsel_on_val_006",
+      "category": "other",
+      "severity": "medium",
+      "title": "val split is both the model-selection signal and the reported metric; no held-out test split exists",
+      "description": "All three prepare.py scripts produce only train.bin+val.bin. train.py:219 and train.py:274 both consume 'val'. The checkpoint is selected on val loss and the reported headline number is read off val — classic multi-testing issue.",
+      "paper_claim_refs": [
+        "claim_metrics_001",
+        "claim_metrics_003"
+      ],
+      "code_span": {
+        "file_path": "train.py",
+        "line_start": 219,
+        "line_end": 274,
+        "snippet": "",
+        "context_before": 5,
+        "context_after": 5
+      },
+      "data_path": null,
+      "evidence": [],
+      "paper_says": null,
+      "code_does": null,
+      "suggested_fix_diff": null,
+      "suggested_fix_prose": null,
+      "confidence": 0.9,
+      "detector": "auditor",
+      "cross_refs": []
+    }
+  ],
+  "config_comparison": [],
+  "eda_summary": null,
+  "recommendations": [],
+  "unresolved_disagreements": [],
+  "severity_counts": {},
+  "runtime_mode_used": "managed_agents",
+  "runtime_ms_total": 292769,
+  "cost_usd_estimate": null
+}
