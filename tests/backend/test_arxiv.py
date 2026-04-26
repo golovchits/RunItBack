@@ -9,21 +9,20 @@ from backend.tools.arxiv import ArxivRef, parse_arxiv_url, pdf_url_for
 @pytest.mark.parametrize(
     "inp,expected_id,expected_version",
     [
-        # New-style IDs via URL
-        ("https://arxiv.org/abs/2504.01848", "2504.01848", None),
-        ("https://arxiv.org/abs/2504.01848v1", "2504.01848", "v1"),
-        ("https://arxiv.org/abs/2504.01848v12", "2504.01848", "v12"),
+        # New-style IDs via /pdf/ URL
         ("https://arxiv.org/pdf/2504.01848", "2504.01848", None),
+        ("https://arxiv.org/pdf/2504.01848v1", "2504.01848", "v1"),
+        ("https://arxiv.org/pdf/2504.01848v12", "2504.01848", "v12"),
         ("https://arxiv.org/pdf/2504.01848.pdf", "2504.01848", None),
         ("https://arxiv.org/pdf/2504.01848v2.pdf", "2504.01848", "v2"),
-        ("http://arxiv.org/abs/2504.01848", "2504.01848", None),
-        ("https://export.arxiv.org/abs/2504.01848", "2504.01848", None),
+        ("http://arxiv.org/pdf/2504.01848", "2504.01848", None),
+        ("https://export.arxiv.org/pdf/2504.01848", "2504.01848", None),
         # 5-digit new-style
-        ("https://arxiv.org/abs/2504.12345", "2504.12345", None),
+        ("https://arxiv.org/pdf/2504.12345", "2504.12345", None),
         # Trailing slash / query / fragment
-        ("https://arxiv.org/abs/2504.01848/", "2504.01848", None),
-        ("https://arxiv.org/abs/2504.01848?context=cs.LG", "2504.01848", None),
-        ("https://arxiv.org/abs/2504.01848#introduction", "2504.01848", None),
+        ("https://arxiv.org/pdf/2504.01848/", "2504.01848", None),
+        ("https://arxiv.org/pdf/2504.01848?context=cs.LG", "2504.01848", None),
+        ("https://arxiv.org/pdf/2504.01848#introduction", "2504.01848", None),
         # Prefix form
         ("arxiv:2504.01848", "2504.01848", None),
         ("ArXiv:2504.01848v1", "2504.01848", "v1"),
@@ -31,7 +30,7 @@ from backend.tools.arxiv import ArxivRef, parse_arxiv_url, pdf_url_for
         ("2504.01848", "2504.01848", None),
         ("2504.01848v3", "2504.01848", "v3"),
         # Old-style
-        ("https://arxiv.org/abs/cs/0701001", "cs/0701001", None),
+        ("https://arxiv.org/pdf/cs/0701001", "cs/0701001", None),
         ("cs/0701001", "cs/0701001", None),
         ("cs/0701001v2", "cs/0701001", "v2"),
         ("cs.LG/0701001", "cs.LG/0701001", None),
@@ -53,12 +52,32 @@ def test_parse_accepts(inp, expected_id, expected_version):
         "",
         "   ",
         "arxiv:",
-        "ftp://arxiv.org/abs/2504.01848",  # wrong scheme
-        "https://arxiv.org/abs/abc.def",  # bad id shape
+        "ftp://arxiv.org/pdf/2504.01848",  # wrong scheme
+        "https://arxiv.org/pdf/abc.def",  # bad id shape
+        # /abs/ and /html/ variants are explicitly rejected
+        "https://arxiv.org/abs/2504.01848",
+        "https://arxiv.org/abs/2504.01848v2",
+        "http://arxiv.org/abs/2504.01848",
+        "https://export.arxiv.org/abs/2504.01848",
+        "https://arxiv.org/abs/cs/0701001",
+        "https://arxiv.org/html/2504.01848",
+        "https://arxiv.org/html/2504.01848v1",
     ],
 )
 def test_parse_rejects(inp):
     with pytest.raises(InputError):
+        parse_arxiv_url(inp)
+
+
+@pytest.mark.parametrize(
+    "inp",
+    [
+        "https://arxiv.org/abs/2504.01848",
+        "https://arxiv.org/html/2504.01848",
+    ],
+)
+def test_parse_rejects_abs_and_html_with_clear_message(inp):
+    with pytest.raises(InputError, match=r"/(abs|html)/"):
         parse_arxiv_url(inp)
 
 

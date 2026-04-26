@@ -195,10 +195,18 @@ export function InputScreen() {
 
 function validate(r: AuditRequest): { ok: boolean; reason: string } {
   switch (r.paper.kind) {
-    case "arxiv":
-      if (!r.paper.arxiv_url.trim())
+    case "arxiv": {
+      const url = r.paper.arxiv_url.trim();
+      if (!url)
         return { ok: false, reason: "Paper: arXiv URL is required." };
+      if (/\/(abs|html)\//i.test(url))
+        return {
+          ok: false,
+          reason:
+            "Paper: only arXiv /pdf URLs are supported (replace /abs or /html with /pdf).",
+        };
       break;
+    }
     case "pdf_url":
       if (!r.paper.url.trim())
         return { ok: false, reason: "Paper: PDF URL is required." };

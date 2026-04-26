@@ -37,7 +37,7 @@ def test_paper_analyst_arxiv_produces_document_block(tmp_path: Path):
 
     content = build_paper_analyst_content(
         pdf,
-        PaperSourceArxiv(arxiv_url="https://arxiv.org/abs/2504.01848"),
+        PaperSourceArxiv(arxiv_url="https://arxiv.org/pdf/2504.01848"),
         "AuditRequest: example",
     )
     assert len(content) == 2
@@ -311,7 +311,7 @@ def test_user_notes_appended_to_paper_analyst(tmp_path: Path):
     pdf.write_bytes(b"%PDF-x")
     content = build_paper_analyst_content(
         pdf,
-        PaperSourceArxiv(arxiv_url="https://arxiv.org/abs/2504.01848"),
+        PaperSourceArxiv(arxiv_url="https://arxiv.org/pdf/2504.01848"),
         "summary",
         user_notes="I suspect the backbone is not actually frozen.",
     )

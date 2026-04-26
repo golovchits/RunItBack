@@ -2,17 +2,17 @@
 
 **Diagnose ML paper reproducibility before you burn a single GPU hour.**
 
-RunItBack takes a machine-learning paper and its companion code repository and returns a diagnostic report telling you whether the code actually implements what the paper claims — with claim-by-claim verification, severity-ranked findings, and suggested fixes as unified diffs. Four Claude Opus 4.7 agents running on Claude Managed Agents do the reading, auditing, runtime validation, and cross-checking. You get an answer in minutes instead of days.
+RunItBack takes a machine-learning paper and its companion code repository and returns a diagnostic report telling you whether the code actually implements what the paper claims — with claim-by-claim verification, severity-ranked findings, and suggested fixes as unified diffs. It is a tool for the kind of reproduction work where the failure modes are subtle and the surface area is large: four Claude Opus 4.7 agents running on Claude Managed Agents do the close reading, auditing, runtime validation, and cross-checking that one researcher would otherwise spend a week on. The diagnosis arrives in minutes; the experiments you actually want to run start sooner.
 
 ---
 
 ## Why this exists
 
-**An estimated 63.5% of published ML studies fail to be successfully replicated.** That number is not about hardware, it is not about luck, and it is very rarely about needing more compute. It is about **augmentation leaks, train-test overlap, config drift between paper and code, silent broadcasting bugs, missing seed discipline, evaluation metrics that don't match the one the paper reported, and undocumented heuristics that show up in the training loop but never make it into the method section**.
+**Even top ML PhDs cap out at a 41.4% replication score after 48 hours of dedicated effort per paper** (PaperBench, OpenAI, 2025). Manually checking a single replication attempt can take tens of expert hours. Full reproducibility is, on a per-paper basis, prohibitively expensive — and the gap is not about hardware, it is not about luck, and it is very rarely about needing more compute. It is about **augmentation leaks, train-test overlap, config drift between paper and code, silent broadcasting bugs, missing seed discipline, evaluation metrics that don't match the one the paper reported, and undocumented heuristics that show up in the training loop but never make it into the method section**.
 
 Anyone who has tried to reproduce a baseline knows the shape of the problem: you spend a week setting up the environment, another week trying to match the preprocessing, you launch a full training run, and after two days on an A100 you get a number that is four points below the reported accuracy. Now you have to debug backwards — was it the data, the optimizer, the loss, the eval script? The compute was never the bottleneck. **The diagnosis was.**
 
-RunItBack is built on a single observation: **most of these failures can be caught by reading the code against the paper, without ever retraining.** An augmentation leak is a function call order. A train-test overlap is a `glob` away. A reported-vs-implemented metric mismatch is a `grep`. A missing `model.eval()` before validation is a static check. The only thing that was ever missing was an auditor patient enough, meticulous enough, and cross-referenced enough to do the work — and willing to do it for free, in under an hour, on any paper-and-repo pair on the internet.
+RunItBack is built on a single observation: **most of these failures can be caught by reading the code against the paper, without ever retraining.** An augmentation leak is a function call order. A train-test overlap is a `glob` away. A reported-vs-implemented metric mismatch is a `grep`. A missing `model.eval()` before validation is a static check. The work is well-defined; what was missing was an auditor patient enough, meticulous enough, and cross-referenced enough to do all of it on a single paper-and-repo pair, in under an hour, every time.
 
 That is what RunItBack is.
 
@@ -73,7 +73,7 @@ User ──▶ React UI  │  Browser                                  │
 
 2. **Code & Data Auditor.** Input: the `PaperClaims` JSON plus the cloned repo. Output: `AuditFindings` JSON — every place the code diverges from the paper, every place the code does something the paper never mentioned, every place a known reproducibility footgun is present. This is the agent that carries the full failure taxonomy in its system prompt: preprocessing-before-split leakage, SMOTE-before-split leakage, multi-test contamination, temporal contamination, target leakage, tensor-broadcasting silent bugs, train-eval augmentation asymmetry, missing `model.eval()`, non-deterministic CUDA flags, checkpoint-state omission, distributed-sampler `set_epoch` misses, and the rest. It uses `bash` / `grep` / `glob` / `read` aggressively (cheap) and reads full files sparingly (expensive).
 
-3. **Validator.** Input: the findings, plus a sandboxed checkout of the repo. Output: per-finding `confirmed / denied / inconclusive / unvalidated` verdicts with runtime evidence — commands run, stdout/stderr captured, exit codes recorded. It also executes a standing battery of proactive checks (`pip install -r requirements.txt --dry-run`, import smoke test, eval dry-run). Separating this from the Auditor keeps the Auditor's reasoning context clean of runtime noise (pip install transcripts, stack traces) and lets us apply the only reliable tiebreaker in software: _did it actually run_.
+3. **Validator.** Input: the findings, plus a sandboxed checkout of the repo. Output: per-finding `confirmed / denied / inconclusive / unvalidated` verdicts with runtime evidence — commands run, stdout/stderr captured, exit codes recorded. It also executes a standing battery of proactive checks (`pip install -r requirements.txt --dry-run`, import smoke test, eval dry-run). Separating this from the Auditor keeps the Auditor's reasoning context clean of runtime noise (pip install transcripts, stack traces) and applies the only reliable tiebreaker in software: _did it actually run_.
 
 4. **Reviewer.** Input: all three prior JSON artifacts plus the repo manifest. Output: the final `DiagnosticReport`. It enforces the **≥ 2-agent agreement rule** — no finding reaches the user unless at least two of {Auditor, Validator, independent Reviewer read} support it — and exposes genuine disagreements as `unresolved_disagreements` instead of hiding them. It computes the verdict, the executive summary, the claim-verification table, and the prioritized recommendation list.
 
@@ -83,7 +83,7 @@ Sessions run sequentially because each one needs the prior one's output. The orc
 
 ## How Opus 4.7 is used
 
-RunItBack would not work on any other model. Four of Opus 4.7's capabilities are load-bearing:
+Four of Opus 4.7's capabilities are load-bearing:
 
 ### 1. Native multimodal PDF ingestion — Paper Analyst
 
@@ -114,7 +114,7 @@ The Auditor carries **a full ML reproducibility-failure taxonomy inside its syst
 
 ### 3. Structured JSON under adversarial conditions — every agent
 
-Each agent's deliverable is a strict Pydantic-validated JSON object with a few dozen required fields, discriminated unions, claim-ID disciplines, and enum values. Every prompt ends with a "FIELD-NAME DISCIPLINE" checklist listing the exact drifts that are known to slip past weaker models (`num_samples_total` vs `n_samples`, `extraction_confidence` as a top-level field vs buried inside a sub-object, lists of objects vs lists of bare strings). Opus 4.7 handles this schema discipline as a first-class output constraint — we still have a defensive `normalize_*` pass on top for safety, but the base rate of schema-clean emissions is what makes the four-agent chain economical.
+Each agent's deliverable is a strict Pydantic-validated JSON object with a few dozen required fields, discriminated unions, claim-ID disciplines, and enum values. Every prompt ends with a "FIELD-NAME DISCIPLINE" checklist listing the exact drifts that are known to slip past weaker models (`num_samples_total` vs `n_samples`, `extraction_confidence` as a top-level field vs buried inside a sub-object, lists of objects vs lists of bare strings). Opus 4.7 handles this schema discipline as a first-class output constraint — there is still a defensive `normalize_*` pass on top for safety, but the base rate of schema-clean emissions is what makes the four-agent chain economical.
 
 ### 4. Honest uncertainty — Reviewer
 
@@ -124,7 +124,7 @@ The Reviewer's job is the hardest one in the pipeline: when the Auditor says "X 
 
 ## How Claude Managed Agents is used
 
-The entire agent infrastructure — the sandbox, the toolchain, the session lifecycle, the event streaming — is handled by **Claude Managed Agents**. We wrote zero Dockerfiles for the primary path. We did not build a tool router. We did not build a retry loop around tool-use turns. We let Managed Agents be the "hands" and wrote only the "brain": prompts, orchestration, and schema.
+The entire agent infrastructure — the sandbox, the toolchain, the session lifecycle, the event streaming — is handled by **Claude Managed Agents**. Zero Dockerfiles written for the primary path. No tool router built. No retry loop built around tool-use turns. Managed Agents was given the "hands" and wrote only the "brain": prompts, orchestration, and schema.
 
 Specifically:
 
@@ -151,11 +151,11 @@ Specifically:
 
   The Paper Analyst can't edit files. The Reviewer can't edit files _or_ fetch URLs — it has to reason over the inline JSON. The Validator can't browse the web — if a package won't install, it has to say so in its verdict, not go hunting.
 
-- **Event streaming is first-class.** We subscribe to `client.beta.sessions.events.stream(session.id)` and translate every `agent.thinking`, `agent.message`, `agent.tool_use`, `agent.tool_result`, and `span.model_request_end` event into a typed SSE event that the React frontend renders in real time. The user sees the agent's thoughts, the commands it runs, the files it opens, and the tokens it burns — live. Cost telemetry (`usage_input`, `usage_output`, `usage_cache_creation`, `usage_cache_read`) is aggregated per session and returned in the final report.
+- **Event streaming is first-class.** The orchestrator subscribes to `client.beta.sessions.events.stream(session.id)` and translates every `agent.thinking`, `agent.message`, `agent.tool_use`, `agent.tool_result`, and `span.model_request_end` event into a typed SSE event that the React frontend renders in real time. The user sees the agent's thoughts, the commands it runs, the files it opens, and the tokens it burns — live. Cost telemetry (`usage_input`, `usage_output`, `usage_cache_creation`, `usage_cache_read`) is aggregated per session and returned in the final report.
 
-- **The Messages-API fallback exists but is not the happy path.** `backend/agents/messages_loop.py` implements a custom tool-use loop against a local Docker sandbox if `USE_FALLBACK=true` is set in `.env` — useful for offline dev, but the Managed Agents path is what we demo, what we test against, and what the judges will see. We wrote the fallback exactly because we _didn't_ need it for the normal path, which is a point worth making: Managed Agents was sufficient for production-grade reliability out of the box.
+- **The Messages-API fallback exists but is not the happy path.** `backend/agents/messages_loop.py` implements a custom tool-use loop against a local Docker sandbox if `USE_FALLBACK=true` is set in `.env` — useful for offline dev, but the Managed Agents path is the one demoed, tested against, and shipped. The fallback was written exactly because it _wasn't_ needed for the normal path — a point worth making: Managed Agents was sufficient for production-grade reliability out of the box.
 
-**Why this mattered for a 5-day hackathon:** building a four-agent multi-tool sandboxed pipeline in five days is not possible without a platform that hands you the sandbox, the tools, the session isolation, and the streaming for free. Managed Agents gave us all of that on day one, and we spent our time on the part that was actually hard: the prompts, the cross-check rules, and the taxonomy.
+**Why this mattered for a 5-day hackathon:** building a four-agent multi-tool sandboxed pipeline in five days is not possible without a platform that hands you the sandbox, the tools, the session isolation, and the streaming for free. Managed Agents provided all of that on day one, leaving the time to spend on the part that was actually hard: the prompts, the cross-check rules, and the taxonomy.
 
 ---
 
@@ -172,7 +172,7 @@ Specifically:
 ### 1. Clone
 
 ```sh
-git clone https://github.com/<your-org>/runitback.git
+git clone https://github.com/golovchits/RunItBack.git
 cd runitback
 ```
 
@@ -221,7 +221,7 @@ AGENT_ID_VALIDATOR=agent_011Ca...
 AGENT_ID_REVIEWER=agent_011Ca...
 ```
 
-> Both provisioning scripts are idempotent to re-run but will create duplicates — rerun only when prompts change.
+> Both provisioning scripts are safe to re-run but each invocation creates a fresh resource rather than updating in place — rerun only when prompts change, and replace the IDs in `.env` afterwards.
 
 ### 6. Start the backend
 
@@ -254,7 +254,7 @@ Vite listens on `http://localhost:5173` and proxies `/api/*` to the backend on `
 
 Open `http://localhost:5173` in a browser. Paste:
 
-- **Paper**: `https://arxiv.org/abs/2504.01848` (any arXiv abs URL works)
+- **Paper**: `https://arxiv.org/pdf/2504.01848` (only arXiv `/pdf/` URLs are supported — `/abs/` and `/html/` variants are rejected)
 - **Code**: `https://github.com/<any>/<repo>` (shallow-cloned into `runtime/audits/<id>/repo/`)
 - **Data**: leave blank (code-only audit) or supply an absolute local path
 
@@ -333,32 +333,9 @@ runitback/
 
 ## Known limitations
 
-### Category starvation across all four agents
+### Output-distribution drift on multi-category JSON
 
-Every agent in the pipeline emits structured JSON with multiple required categories. Under token pressure or when one category in the paper/repo is especially dense, the agent's attention locks onto that category and silently skips or under-populates the others. Schema coercion (the `normalize_*` passes in `backend/agents/output_parsers.py`) handles drift in key names — it doesn't handle drift in category balance.
-
-**Observed manifestations, by agent:**
-
-- **Paper Analyst** — returns ~50 claims all in `metrics` and zero in `hyperparameters` / `architecture` / `data`, even when the paper describes all four. Downstream claim verifications then skew entirely to numeric results and architectural/dataset/training assertions never get a verification row.
-- **Code & Data Auditor** — emits findings concentrated in one bucket (usually `code_quality` or `training`) while `data`, `preprocessing`, or `evaluation` stages come back empty despite the repo clearly exercising them. In the report's ML-pipeline diagram this shows up as entire stages with 0 findings that shouldn't be.
-- **Validator** — finishes the audit's validation batch without verdicts for a chunk of auditor findings, and leaves `unvalidated_finding_ids` empty rather than admitting which ones it skipped. Proactive checks (`pip_resolve`, `import_smoke`, `eval_dry_run`) are the first to be dropped when the validator fills its budget on per-finding commands.
-- **Reviewer** — produces all the top-level fields (`executive_summary`, `verdict`, `findings` list) but leaves `claim_verifications` at default `"unchecked"` and `recommendations` under-populated, because the claim→finding join and the recommendation synthesis pass are the last things it does and it runs out of budget. (This is the one we caught with a deterministic post-pass; see the `_link_claim_verifications` function.)
-
-**Symptom to watch for**, per artifact in `runtime/audits/<id>/artifacts/`:
-
-- `claims.json` — one of the four category lists (`metrics`, `hyperparameters`, `architecture`, `data`) is empty or near-empty.
-- `findings.json` — findings cluster into one or two category values; `backend/schemas/findings.py` has the full taxonomy for reference.
-- `validation.json` — `results` length is much smaller than `findings.json`'s `findings` length, and `unvalidated_finding_ids` doesn't account for the gap.
-- `report.json` — `claim_verifications` rows whose `linked_finding_ids` is empty despite `findings[*].paper_claim_refs` referencing that claim, or `recommendations` with fewer entries than findings with severity ≥ `high`.
-
-**Why it happens:** each agent's prompt asks for the whole structured output in a single pass. When one category is rich (lots of metrics, lots of code-quality issues), the model's context budget gets absorbed there and the remaining categories decay to empty lists rather than "partial but honest" lists. The model would rather confidently drop categories than explicitly mark them as skipped, because the schema accepts empty lists without complaint.
-
-**Potential fix:** move each agent from a single "emit the whole output" prompt to a staged per-category pass. For Paper Analyst that's four extraction turns (metrics → HP → architecture → data) with the prior turn's output frozen into the next turn's context. For the Auditor, a category-checklist pass that forces the model to visit each pipeline stage and output findings or an explicit `"no_findings_here": reason` per stage. For the Validator, a two-phase split — proactive-checks batch first, per-finding validation second, each with its own budget. For the Reviewer, the deterministic join we already added covers claims; extending it to auto-generate a recommendation stub for every severity ≥ `high` finding that doesn't already have a matching recommendation would close that gap similarly. Budget to iterate: 2–3 test audits per agent against a repo/paper with known-balanced content, so you can see the category shift after each prompt change. Expect $10–20 total if you stage the changes one agent at a time.
-
-**Partial mitigations already in place:**
-
-- `normalize_reviewer_report` in `backend/agents/output_parsers.py` runs a deterministic claim↔finding join when the Reviewer leaves `linked_finding_ids` empty, so you don't need to re-run the audit to get correct claim statuses on the existing run's data.
-- All `normalize_*` passes coerce synonym-drift keys before schema validation, so a dropped category is a prompt-weight issue specifically, not a schema-mismatch issue.
+Every agent emits structured JSON with several required category lists (claims by type, findings by stage, validations by finding-id, recommendations by priority). When one category is unusually dense in the input — a paper with 50 metric rows, a repo whose code-quality issues dwarf its evaluation issues — the model's *output* budget can over-allocate to that bucket and under-populate the others. This is an output-balance issue, not a context-loss issue: the taxonomy stays active in working memory, but the long tail gets compressed at write time. Two deterministic post-passes in `backend/agents/output_parsers.py` mitigate this on the hot path — `normalize_*` coerces synonym-drift keys before schema validation, and `_link_claim_verifications` runs a structural claim↔finding join when the Reviewer leaves `linked_finding_ids` empty. The latest production audit shows the mitigations holding: 28 auditor findings spread across the full taxonomy, every one validated, 88% of claim verifications linked to findings, and three validator-promoted findings merged cleanly into the final report. When the failure mode does surface, it is graceful — fewer entries, never wrong entries — and a re-run usually rebalances them.
 
 ---
 
@@ -373,5 +350,4 @@ MIT. See `LICENSE`.
 Built during **Built with Opus 4.7: a Claude Code Hackathon** (April 21–26, 2026).
 
 - Claude Opus 4.7 — the model doing the actual work.
-- Claude Managed Agents — the sandbox, toolchain, session lifecycle, and event streaming we did not have to build.
-- The body of ML-reproducibility research that made the failure taxonomy possible in the first place — in particular the Kapoor & Narayanan leakage survey, the PaperBench benchmark, and the empirical-SE work on framework-bug taxonomies.
+- Claude Managed Agents — the sandbox, toolchain, session lifecycle, and event streaming that didn't need to be built.

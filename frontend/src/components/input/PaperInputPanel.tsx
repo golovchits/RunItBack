@@ -95,15 +95,15 @@ export function PaperInputPanel({ value, onChange }: Props) {
     >
       {tab === "arxiv" && (
         <InputField
-          label="arXiv abstract or PDF URL"
-          placeholder="https://arxiv.org/abs/2401.12345"
+          label="arXiv PDF URL"
+          placeholder="https://arxiv.org/pdf/2401.12345"
           value={arxivUrl}
           mono
           onChange={(e) => {
             setArxivUrl(e.target.value);
             onChange({ kind: "arxiv", arxiv_url: e.target.value });
           }}
-          hint="Supports /abs, /pdf, and /html variants."
+          hint="Only /pdf variants are supported."
         />
       )}
       {tab === "pdf_url" && (

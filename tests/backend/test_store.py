@@ -20,7 +20,7 @@ def _make_record(audit_id: str = "a1", phase: str = "created") -> AuditRecord:
     return AuditRecord(
         id=audit_id,
         request=AuditRequest(
-            paper=PaperSourceArxiv(arxiv_url="https://arxiv.org/abs/2504.01848"),
+            paper=PaperSourceArxiv(arxiv_url="https://arxiv.org/pdf/2504.01848"),
             code=CodeSourceGit(url="https://github.com/a/b"),
             data=DataSourceSkip(),
         ),

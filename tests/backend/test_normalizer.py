@@ -73,7 +73,7 @@ def mock_tools(monkeypatch, _mock_fetch_and_clone):
 
 async def test_normalize_arxiv_paper(settings, mock_tools):
     req = AuditRequest(
-        paper=PaperSourceArxiv(arxiv_url="https://arxiv.org/abs/2504.01848"),
+        paper=PaperSourceArxiv(arxiv_url="https://arxiv.org/pdf/2504.01848"),
         code=CodeSourceGit(url="https://github.com/a/b"),
         data=DataSourceSkip(),
     )
@@ -487,7 +487,7 @@ async def test_preflight_accepts_well_formed_url(
 
 async def test_source_summary_contains_all_parts(settings, mock_tools):
     req = AuditRequest(
-        paper=PaperSourceArxiv(arxiv_url="https://arxiv.org/abs/2504.01848"),
+        paper=PaperSourceArxiv(arxiv_url="https://arxiv.org/pdf/2504.01848"),
         code=CodeSourceGit(url="https://github.com/a/b"),
         data=DataSourceSkip(),
     )

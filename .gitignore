@@ -55,3 +55,4 @@ frontend/.vite/
 
 # Local Claude CLI permissions
 .claude/settings.local.json
+.cc-history/

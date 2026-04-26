@@ -25,9 +25,11 @@ class ArxivRef:
 def parse_arxiv_url(url_or_id: str) -> ArxivRef:
     """Parse an arXiv URL or bare ID into an ``ArxivRef``.
 
-    Accepts: ``https://arxiv.org/abs/2504.01848``,
+    Accepts: ``https://arxiv.org/pdf/2504.01848``,
     ``.../pdf/2504.01848.pdf``, ``arxiv:2504.01848v2``, bare IDs
     (``2504.01848``), and pre-2007 ``cs/0701001`` / ``cs.LG/0701001``.
+    Rejects ``/abs/`` and ``/html/`` URL variants — only ``/pdf/`` is
+    supported because the Paper Analyst ingests the raw PDF bytes.
     """
     s = url_or_id.strip()
     if not s:
@@ -47,10 +49,14 @@ def parse_arxiv_url(url_or_id: str) -> ArxivRef:
         if parsed.hostname not in _ARXIV_HOSTS:
             raise InputError(f"not an arXiv URL: {url_or_id!r}")
         path = parsed.path or ""
-        for prefix in ("/abs/", "/pdf/"):
-            if path.startswith(prefix):
-                path = path[len(prefix):]
-                break
+        if path.startswith("/abs/") or path.startswith("/html/"):
+            variant = "abs" if path.startswith("/abs/") else "html"
+            raise InputError(
+                f"arXiv /{variant}/ URLs are not supported — use the /pdf/ "
+                f"variant (e.g. https://arxiv.org/pdf/2504.01848): {url_or_id!r}"
+            )
+        if path.startswith("/pdf/"):
+            path = path[len("/pdf/"):]
         else:
             raise InputError(f"unrecognized arXiv URL path: {url_or_id!r}")
         path = path.strip("/")
