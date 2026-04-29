@@ -4,6 +4,10 @@
 
 RunItBack takes a machine-learning paper and its companion code repository and returns a diagnostic report telling you whether the code actually implements what the paper claims — with claim-by-claim verification, severity-ranked findings, and suggested fixes as unified diffs. It is a tool for the kind of reproduction work where the failure modes are subtle and the surface area is large: four Claude Opus 4.7 agents running on Claude Managed Agents do the close reading, auditing, runtime validation, and cross-checking that one researcher would otherwise spend a week on. The diagnosis arrives in minutes; the experiments you actually want to run start sooner.
 
+| | |
+|---|---|
+| **Demo video** | https://drive.google.com/file/d/1c0yJFpPJjAiKCjmJxmjYwY-jLp1eLEur/view?usp=sharing|
+
 ---
 
 ## Why this exists
